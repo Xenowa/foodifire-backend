@@ -32,7 +32,7 @@ app.get("/", (req, res) => {
 })
 
 // =============
-// ML Prediction (Inception V3)[63% Val_Accuracy]
+// ML Prediction (MobileNet V2)[81% Val_Accuracy]
 // =============
 // Food Classes
 const classes = ['apple_pie', 'bread_pudding', 'carrot_cake', 'cheesecake', 'chocolate_cake', 'club_sandwich', 'cup_cakes', 'fish_and_chips', 'french_fries', 'fried_rice']
@@ -46,14 +46,14 @@ const predictFoodImage = async (image) => {
     // Decode the image to a tensor
     const decodedImage = tf.node.decodeImage(imageBuffer)
 
-    // Resize the image to 180x180
-    const resizedImage = tf.image.resizeBilinear(decodedImage, [180, 180])
+    // Resize the image to 224x224
+    const resizedImage = tf.image.resizeBilinear(decodedImage, [224, 224])
 
     // Expand the dimensitons to fit the input shape of the model
     const input = resizedImage.expandDims()
 
     // Load the model
-    const model = await loadGraphModel("file://./inceptionV3_tfjs/model.json")
+    const model = await loadGraphModel("file://./mobilenetV2_tfjs/model.json")
 
     // Get the predictions for the image
     const prediction = model.predict(input)
