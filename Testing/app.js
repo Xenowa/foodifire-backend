@@ -9,23 +9,8 @@ const express = require("express")
 const app = express()
 app.use(express.json({ "limit": "100mb" })) // increase image load
 
-// setting up cors for specific addresses to prevent origin blocking
-const cors = require("cors")
-const whitelist = process.env.CORS_DOMAINS
-const corsOptions = {
-    origin: function (origin, callback) {
-        if (whitelist.indexOf(origin) !== -1) {
-            callback(null, true)
-        } else {
-            callback(new Error('Not allowed by CORS'))
-        }
-    }
-}
-
-app.use(cors(corsOptions))
-
 // importing the database
-const { client, database } = require("./db/db")
+const { client, database } = require("../db/db")
 
 // importing tensorflowjs & Model
 const tf = require("@tensorflow/tfjs-node")
