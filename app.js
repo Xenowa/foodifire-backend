@@ -121,9 +121,6 @@ app.post("/getReport", async (req, res) => {
         const cursor = db.collection("food-disease")
         const foodAndDiseases = await cursor.findOne({ foodName: foodName })
 
-        // Close database connection
-        await client.close()
-
         // get the diseases from the details
         const diseases = foodAndDiseases.diseases
 
