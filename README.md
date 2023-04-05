@@ -15,7 +15,7 @@
 ### Technologies used
 
 - NodeJS + Express Backend
-- TensorflowJS Inception v4 model
+- TensorflowJS MobileNet V2 model
 - MongoDB database
 
 ### How It Works
