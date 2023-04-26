@@ -280,13 +280,83 @@ app.post("/login", async (req, res) => {
 // MongoDB Crud Operations
 // =======================
 // Add disease
-app.post("/userdiseases/diseases", (req, res) => {
-    // get the disease
-    console.log(req.body.payload)
+app.post("/disease", auth, async (req, res) => {
+    console.log(`${req.hostname} | ${req.ip}: has Entered a disease condition!`)
 
+    // get the disease
+    const { userEmail, condition } = req.body
+    // No Image Validation response
+    if (!condition) {
+        return res.status(401).send({ message: "Error!, Empty inputs not allowed!" })
+    }
+
+    // Number validation response
+    if (!isNaN(condition)) {
+        return res.status(401).send({ message: "Error!, Number inputs not allowed!" })
+    }
+
+    // Empty string response
+    if (condition === "") {
+        return res.status(401).send({ message: "Error!, Empty inputs not allowed!" })
+    }
+
+    // Check if user exists and update diseases
+    try {
+        // Filter by email
+        const filter = { "userSSO.email": userEmail }
+        // Push to array
+        const update = { $push: { diseases: condition } }
+
+        // Perform update
+        await User.findOneAndUpdate(filter, update, { new: true })
+
+        // Send back the confirmation message
+        res.send({ message: "Disease inserted successfully!" })
+    } catch (err) {
+        console.log(err)
+        res.status(500).json({
+            message: "An error occured. disease adding failed!"
+        })
+    }
 })
 
 // Delete disease
-app.delete("/userdiseases/disease", (req, res) => {
-    console.log(req.body.payload)
+app.delete("/disease", auth, async (req, res) => {
+    console.log(`${req.hostname} | ${req.ip}: has deleted a disease!`)
+
+    // get the disease
+    const { userEmail, condition } = req.body
+    // No Image Validation response
+    if (!condition) {
+        return res.status(401).send({ message: "Error!, Empty inputs not allowed!" })
+    }
+
+    // Number validation response
+    if (!isNaN(condition)) {
+        return res.status(401).send({ message: "Error!, Number inputs not allowed!" })
+    }
+
+    // Empty string response
+    if (condition === "") {
+        return res.status(401).send({ message: "Error!, Empty inputs not allowed!" })
+    }
+
+    // Check if user exists and update diseases
+    try {
+        // Filter by email
+        const filter = { "userSSO.email": userEmail }
+        // delete from array
+        const update = { $pull: { diseases: condition } }
+
+        // Perform update
+        await User.findOneAndUpdate(filter, update, { new: true })
+
+        // Send back the confirmation message
+        res.send({ message: "Disease deleted successfully!" })
+    } catch (err) {
+        console.log(err)
+        res.status(500).json({
+            message: "An error occured. disease deleting failed!"
+        })
+    }
 })
