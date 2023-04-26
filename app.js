@@ -9,12 +9,15 @@ const express = require("express")
 const app = express()
 app.use(express.json({ "limit": "100mb" })) // increase image load
 
+// Importing authentication middleware
+const auth = require("./middleware/auth")
+
 // setting up cors for specific addresses to prevent origin blocking
 const cors = require("cors")
 const whitelist = process.env.CORS_DOMAINS
 const corsOptions = {
     origin: function (origin, callback) {
-        if (whitelist.indexOf(origin) !== -1) {
+        if (whitelist.indexOf(origin) !== -1 || !origin) {
             callback(null, true)
         } else {
             callback(new Error('Not allowed by CORS'))
@@ -24,29 +27,20 @@ const corsOptions = {
 
 app.use(cors(corsOptions))
 
-// importing the database
-const { client, database } = require("./db/db")
-
 // importing tensorflowjs & Model
 const tf = require("@tensorflow/tfjs-node")
-const { loadGraphModel } = require("@tensorflow/tfjs-converter")
-
-// ==========
-// Home Route
-// ==========
-app.get("/", (req, res) => {
-    res.send("<h1>Welcome to foodifire 🔥</h1>")
-})
+const { loadGraphModel } = require("@tensorflow/tfjs-node")
 
 // =============
-// ML Prediction (MobileNet V2)[81% Val_Accuracy]
+// ML Prediction (MobileNet V2)[80% Val_Accuracy]
 // =============
+// Set the model
+let model = ""
+
 // Food Classes
 const classes = ['apple_pie', 'bread_pudding', 'carrot_cake', 'cheesecake', 'chocolate_cake', 'club_sandwich', 'cup_cakes', 'fish_and_chips', 'french_fries', 'fried_rice']
 
 const predictFoodImage = async (image) => {
-    // Validate the image passed
-
     // Recieve the buffer data of the image dataURL
     const imageBuffer = Buffer.from(image.split(",")[1], "base64")
 
@@ -58,9 +52,6 @@ const predictFoodImage = async (image) => {
 
     // Expand the dimensitons to fit the input shape of the model
     const input = resizedImage.expandDims()
-
-    // Load the model
-    const model = await loadGraphModel("file://./mobilenetV2_tfjs/model.json")
 
     // Get the predictions for the image
     const prediction = model.predict(input)
@@ -78,16 +69,49 @@ const predictFoodImage = async (image) => {
     return predictedFood
 }
 
+// ======================
+// Serving express server
+// ======================
+// Loading the database
+const mongoose = require("mongoose")
+const foodDiseases = require("./models/foodDiseasesModel")
+const port = process.env.PORT || 3000
+
+app.listen(port, async () => {
+    console.log(`Listening on port ${port}...`)
+
+    // Load the ML Model
+    model = await loadGraphModel("file://./mobilenetV2_tfjs/model.json")
+
+    // Load the DB
+    mongoose
+        .connect(process.env.MONGODB_CON_URL)
+        .then(() => {
+            console.log("DB Server running...")
+        }).catch((err) => {
+            console.log("DB is not functional!")
+            console.log(err)
+        })
+})
+
+// ==========
+// Home Route
+// ==========
+app.get("/", (req, res) => {
+    console.log(`${req.hostname} | ${req.ip}: has requested for home page`)
+    res.send("<h1>Welcome to foodifire 🔥</h1>")
+})
+
 // ================
 // Get Report Route
 // ================
 let imgDataURL = "";
 
-app.post("/getReport", async (req, res) => {
-    console.log("User has requested a report using post")
+app.post("/getReport", auth, async (req, res) => {
+    console.log(`${req.hostname} | ${req.ip}: has requested a report using post`)
 
     // Get the user image from the request body
-    // imgDataURL = req.body.image
+    imgDataURL = req.body.image
     const userImage = req.body.image
 
     // No Image Validation response
@@ -112,28 +136,25 @@ app.post("/getReport", async (req, res) => {
     generatedFoodName = generatedFoodName.split("_").join(" ")
     const foodName = generatedFoodName.charAt(0).toUpperCase() + generatedFoodName.slice(1) // Apple pie
 
-    // Open database connection
+    // DB Operation
     try {
-        client.connect()
-        const db = client.db(database)
-
         // Send food name and get relevant details
-        const cursor = db.collection("food-disease")
-        const foodAndDiseases = await cursor.findOne({ foodName: foodName })
+        const results = await foodDiseases.findOne({ foodName: foodName })
 
         // get the diseases from the details
-        const diseases = foodAndDiseases.diseases
+        const diseases = results.diseases
 
         // Send back report data to the user
-        const diseaseInformation = {
+        res.status(200).send({
             foodName: foodName,
             relatedConditions: diseases
-        }
-        return res.send(diseaseInformation)
+        })
     } catch (error) {
-        return res.send({
+        console.log(error)
+
+        res.status(200).send({
             foodName: foodName,
-            message: `Error!, Database not functional!`
+            message: "Error!, Database not functional!"
         })
     }
 })
@@ -141,22 +162,131 @@ app.post("/getReport", async (req, res) => {
 // ================
 // Show Image Route
 // ================
-app.get("/userImage", (req, res) => {
+app.get("/userImage", auth, (req, res) => {
+    console.log(`${req.hostname} | ${req.ip}: has requested the image to be predicted`)
+
     if (imgDataURL === undefined) {
         return res.status(403).send({ message: "Error Invalid Image" })
     }
+
     res.send(`<img src='${imgDataURL}' alt='Testing Image'></img>`)
 })
 
-// ======================
-// Serving express server
-// ======================
-const port = process.env.PORT || 3000
+// ==========
+// Google SSO
+// ==========
+// Importing required modules
+const { OAuth2Client } = require("google-auth-library");
+const jwt = require("jsonwebtoken");
 
-// Server defined for testing using jest
-const server = app.listen(port, () => {
-    console.log(`Listening on port ${port}...`)
+// server.js
+/**
+ *  This function is used verify a google account
+ */
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const client = new OAuth2Client(GOOGLE_CLIENT_ID);
+const User = require("./models/userModel")
+
+async function verifyGoogleToken(token) {
+    try {
+        const ticket = await client.verifyIdToken({
+            idToken: token,
+            audience: GOOGLE_CLIENT_ID,
+        });
+        return { payload: ticket.getPayload() };
+    } catch (error) {
+        return { error: "Invalid user detected. Please try again" };
+    }
+}
+
+// Google SSO - Sign In | Log In
+app.post("/login", async (req, res) => {
+    try {
+        // console.log({ verified: verifyGoogleToken(req.body.credential) });
+        if (req.body.credential) {
+            // Validate if the user has google account
+            const verificationResponse = await verifyGoogleToken(req.body.credential);
+
+            if (verificationResponse.error) {
+                return res.status(400).json({
+                    message: verificationResponse.error,
+                });
+            }
+
+            // Get the user data
+            const profile = verificationResponse?.payload;
+
+            // Cross check user data email with db stored email
+            const existsInDB = await User.findOne({ "userSSO.email": profile.email });
+
+            // If no user exists create a new user
+            if (!existsInDB) {
+                console.log(`${req.hostname} | ${req.ip}: has registered to foodifire!`)
+                // Create a user object with the data
+                const newUser = new User({
+                    userSSO: profile,
+                    diseases: [],
+                    savedReports: []
+                })
+
+                // Create a new user in the database
+                await newUser.save().then(() => {
+                    console.log("New user has registered!")
+                }).catch((err) => {
+                    console.log(err)
+                })
+
+                return res.status(201).json({
+                    message: "Signup was successful",
+                    user: {
+                        firstName: profile?.given_name,
+                        lastName: profile?.family_name,
+                        picture: profile?.picture,
+                        email: profile?.email,
+                        token: jwt.sign({ email: profile?.email }, process.env.JWT_SECRET, {
+                            expiresIn: "1d",
+                        }),
+                    },
+                    diseases: newUser.diseases,
+                    savedReports: newUser.savedReports
+                });
+            }
+
+            // If user exists, send back token
+            console.log(`${req.hostname} | ${req.ip}: has Attempted a login!`)
+            res.status(201).json({
+                message: "Login was successful",
+                user: {
+                    firstName: profile?.given_name,
+                    lastName: profile?.family_name,
+                    picture: profile?.picture,
+                    email: profile?.email,
+                    token: jwt.sign({ email: profile?.email }, process.env.JWT_SECRET, {
+                        expiresIn: "1d",
+                    }),
+                },
+                diseases: existsInDB.diseases,
+                savedReports: existsInDB.savedReports
+            });
+        }
+    } catch (error) {
+        res.status(500).json({
+            message: "An error occurred. Registration failed.",
+        });
+    }
 })
 
+// =======================
+// MongoDB Crud Operations
+// =======================
+// Add disease
+app.post("/userdiseases/diseases", (req, res) => {
+    // get the disease
+    console.log(req.body.payload)
 
-module.exports = server
+})
+
+// Delete disease
+app.delete("/userdiseases/disease", (req, res) => {
+    console.log(req.body.payload)
+})
