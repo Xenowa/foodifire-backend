@@ -276,6 +276,43 @@ app.post("/login", async (req, res) => {
     }
 })
 
+// Delete user
+app.delete("/user", auth, async (req, res) => {
+    console.log(`${req.hostname} | ${req.ip}: has deleted his user account!`)
+
+    // Get the user email
+    const userEmail = req.body.userEmail
+
+    // No email Validation response
+    if (!userEmail) {
+        return res.status(401).send({ message: "Error!, Empty inputs not allowed!" })
+    }
+
+    // Number validation response
+    if (!isNaN(userEmail)) {
+        return res.status(401).send({ message: "Error!, Number inputs not allowed!" })
+    }
+
+    // Empty string response
+    if (userEmail === "") {
+        return res.status(401).send({ message: "Error!, Empty inputs not allowed!" })
+    }
+
+    // Check if user exists and delete
+    try {
+        // Perform deletion
+        await User.findOneAndDelete({ "userSSO.email": userEmail })
+
+        // Send back the confirmation message
+        res.send({ message: "User account deleted successfully!" })
+    } catch (err) {
+        console.log(err)
+        res.status(500).json({
+            message: "An error occured. account deletion failed!"
+        })
+    }
+})
+
 // =======================
 // MongoDB Crud Operations
 // =======================
@@ -308,7 +345,7 @@ app.post("/disease", auth, async (req, res) => {
         const update = { $push: { diseases: condition } }
 
         // Perform update
-        await User.findOneAndUpdate(filter, update, { new: true })
+        await User.findOneAndUpdate(filter, update)
 
         // Send back the confirmation message
         res.send({ message: "Disease inserted successfully!" })
@@ -359,4 +396,14 @@ app.delete("/disease", auth, async (req, res) => {
             message: "An error occured. disease deleting failed!"
         })
     }
+})
+
+// Add report
+app.post("/report", auth, async (req, res) => {
+    console.log(req.body)
+})
+
+// Delete report
+app.delete("/report", auth, async (req, res) => {
+    console.log(req.body)
 })
