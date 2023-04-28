@@ -116,17 +116,17 @@ app.post("/getReport", auth, async (req, res) => {
 
     // No Image Validation response
     if (!userImage) {
-        return res.status(400).send({ message: "Error!, Empty inputs not allowed!" })
+        return res.status(403).send({ message: "Error!, Empty inputs not allowed!" })
     }
 
     // Number validation response
     if (!isNaN(userImage)) {
-        return res.status(400).send({ message: "Error!, Number inputs not allowed!" })
+        return res.status(403).send({ message: "Error!, Number inputs not allowed!" })
     }
 
     // String validation response
     if (userImage.split(",")[0] !== "data:image/jpeg;base64") {
-        return res.status(400).send({ message: "Error!, Invalid format" })
+        return res.status(403).send({ message: "Error!, Invalid format" })
     }
 
     // Pass the image to the machine learning model and get foodname
@@ -208,7 +208,7 @@ app.post("/login", async (req, res) => {
             const verificationResponse = await verifyGoogleToken(req.body.credential);
 
             if (verificationResponse.error) {
-                return res.status(400).json({
+                return res.status(401).json({
                     message: verificationResponse.error,
                 });
             }
@@ -236,7 +236,7 @@ app.post("/login", async (req, res) => {
                     console.log(err)
                 })
 
-                return res.status(201).json({
+                return res.json({
                     message: "Signup was successful",
                     user: {
                         firstName: profile?.given_name,
@@ -254,7 +254,7 @@ app.post("/login", async (req, res) => {
 
             // If user exists, send back token
             console.log(`${req.hostname} | ${req.ip}: has Attempted a login!`)
-            res.status(201).json({
+            res.json({
                 message: "Login was successful",
                 user: {
                     firstName: profile?.given_name,
@@ -285,17 +285,17 @@ app.delete("/user", auth, async (req, res) => {
 
     // No email Validation response
     if (!userEmail) {
-        return res.status(401).send({ message: "Error!, Empty inputs not allowed!" })
+        return res.status(403).send({ message: "Error!, Empty inputs not allowed!" })
     }
 
     // Number validation response
     if (!isNaN(userEmail)) {
-        return res.status(401).send({ message: "Error!, Number inputs not allowed!" })
+        return res.status(403).send({ message: "Error!, Number inputs not allowed!" })
     }
 
     // Empty string response
     if (userEmail === "") {
-        return res.status(401).send({ message: "Error!, Empty inputs not allowed!" })
+        return res.status(403).send({ message: "Error!, Empty inputs not allowed!" })
     }
 
     // Check if user exists and delete
@@ -324,17 +324,17 @@ app.post("/disease", auth, async (req, res) => {
     const { userEmail, condition } = req.body
     // No Image Validation response
     if (!condition) {
-        return res.status(401).send({ message: "Error!, Empty inputs not allowed!" })
+        return res.status(403).send({ message: "Error!, Empty inputs not allowed!" })
     }
 
     // Number validation response
     if (!isNaN(condition)) {
-        return res.status(401).send({ message: "Error!, Number inputs not allowed!" })
+        return res.status(403).send({ message: "Error!, Number inputs not allowed!" })
     }
 
     // Empty string response
     if (condition === "") {
-        return res.status(401).send({ message: "Error!, Empty inputs not allowed!" })
+        return res.status(403).send({ message: "Error!, Empty inputs not allowed!" })
     }
 
     // Check if user exists and update diseases
@@ -365,20 +365,20 @@ app.delete("/disease", auth, async (req, res) => {
     const { userEmail, condition } = req.body
     // No Image Validation response
     if (!condition) {
-        return res.status(401).send({ message: "Error!, Empty inputs not allowed!" })
+        return res.status(403).send({ message: "Error!, Empty inputs not allowed!" })
     }
 
     // Number validation response
     if (!isNaN(condition)) {
-        return res.status(401).send({ message: "Error!, Number inputs not allowed!" })
+        return res.status(403).send({ message: "Error!, Number inputs not allowed!" })
     }
 
     // Empty string response
     if (condition === "") {
-        return res.status(401).send({ message: "Error!, Empty inputs not allowed!" })
+        return res.status(403).send({ message: "Error!, Empty inputs not allowed!" })
     }
 
-    // Check if user exists and update diseases
+    // Check if user exists and delete diseases
     try {
         // Filter by email
         const filter = { "userSSO.email": userEmail }
@@ -386,7 +386,7 @@ app.delete("/disease", auth, async (req, res) => {
         const update = { $pull: { diseases: condition } }
 
         // Perform update
-        await User.findOneAndUpdate(filter, update, { new: true })
+        await User.findOneAndUpdate(filter, update)
 
         // Send back the confirmation message
         res.send({ message: "Disease deleted successfully!" })
@@ -400,10 +400,84 @@ app.delete("/disease", auth, async (req, res) => {
 
 // Add report
 app.post("/report", auth, async (req, res) => {
-    console.log(req.body)
+    console.log(`${req.hostname} | ${req.ip}: has saved a report!`)
+
+    // get the data
+    const { userEmail, report } = req.body
+
+    // No Image Validation response
+    if (!report.imgURL) {
+        return res.status(403).send({ message: "Error!, Empty inputs not allowed!" })
+    }
+
+    // Number validation response
+    if (!isNaN(report.imgURL)) {
+        return res.status(403).send({ message: "Error!, Number inputs not allowed!" })
+    }
+
+    // String validation response
+    if (report.imgURL.split(",")[0] !== "data:image/jpeg;base64") {
+        return res.status(403).send({ message: "Error!, Invalid format" })
+    }
+
+    // Check if user exists and update reports
+    try {
+        // Filter by email
+        const filter = { "userSSO.email": userEmail }
+        // Push to array
+        const update = { $push: { savedReports: report } }
+
+        // Perform update
+        await User.findOneAndUpdate(filter, update)
+
+        // Send back the confirmation message
+        res.send({ message: "Report inserted successfully!" })
+    } catch (err) {
+        console.log(err)
+        res.status(500).json({
+            message: "An error occured. report adding failed!"
+        })
+    }
 })
 
 // Delete report
 app.delete("/report", auth, async (req, res) => {
-    console.log(req.body)
+    console.log(`${req.hostname} | ${req.ip}: has deleted a report!`)
+
+    // get the data
+    const { userEmail, report } = req.body
+
+    // No Image Validation response
+    if (!report.imgURL) {
+        return res.status(403).send({ message: "Error!, Empty inputs not allowed!" })
+    }
+
+    // Number validation response
+    if (!isNaN(report.imgURL)) {
+        return res.status(403).send({ message: "Error!, Number inputs not allowed!" })
+    }
+
+    // Empty string response
+    if (report.imgURL === "") {
+        return res.status(403).send({ message: "Error!, Empty inputs not allowed!" })
+    }
+
+    // Check if user exists and update diseases
+    try {
+        // Filter by email
+        const filter = { "userSSO.email": userEmail }
+        // delete from array
+        const update = { $pull: { savedReports: report } }
+
+        // Perform update
+        await User.findOneAndUpdate(filter, update)
+
+        // Send back the confirmation message
+        res.send({ message: "Report deleted successfully!" })
+    } catch (err) {
+        console.log(err)
+        res.status(500).json({
+            message: "An error occured. report deleting failed!"
+        })
+    }
 })
